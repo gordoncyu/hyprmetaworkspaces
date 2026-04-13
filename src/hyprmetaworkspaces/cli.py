@@ -80,21 +80,19 @@ def _get_state() -> None:
 
 
 USAGE = """\
-Usage: hyprmwctl <dispatcher> [args]
+Usage: hyprmwctl <command> [args]
 
-Dispatchers:
-  workspace <digit>
-      Navigate to inner workspace 0-9 within the current metaworkspace.
+Commands:
+  dispatch <dispatcher> [args]
+      Send a dispatch command to the daemon.
 
-  metaworkspace <n>[,chordworkspace]
-      Switch to metaworkspace n. With 'chordworkspace', enter a submap
-      to select an inner workspace via digits.
+      Dispatchers:
+        workspace <digit>
+        metaworkspace <n>[,chordworkspace]
+        workspacesequential <next|prev>[,skipempty][,skipsurrounding][,wrapin|wrapout]
+        metaworkspacesequential <next|prev>[,skipempty][,wrap|nowrap]
 
-  workspacesequential <next|prev>[,skipempty][,skipsurrounding][,wrapin|wrapout]
-      Step to the next/prev workspace sequentially. Flags are comma-delimited.
-
-  metaworkspacesequential <next|prev>[,skipempty][,wrap|nowrap]
-      Step to the next/prev metaworkspace. Flags are comma-delimited.
+      Arguments are comma-delimited or space-separated.
 
   get-state
       Print current daemon state as JSON.
@@ -108,16 +106,21 @@ def main() -> None:
         print(USAGE)
         sys.exit(0)
 
-    dispatcher = args[0]
+    command = args[0]
 
-    if dispatcher == "get-state":
+    if command == "get-state":
         _get_state()
         return
 
-    # All remaining args are joined back as the comma-delimited argument string
-    # The user can call: hyprmwctl workspacesequential next,skipempty,wrapout
-    # or:               hyprmwctl workspacesequential next skipempty wrapout
-    # We support both by joining with commas.
-    dispatch_args = ",".join(args[1:]) if len(args) > 1 else ""
+    if command == "dispatch":
+        if len(args) < 2:
+            print("Error: dispatch requires a dispatcher name", file=sys.stderr)
+            sys.exit(1)
+        dispatcher = args[1]
+        dispatch_args = ",".join(args[2:]) if len(args) > 2 else ""
+        _dispatch(dispatcher, dispatch_args)
+        return
 
-    _dispatch(dispatcher, dispatch_args)
+    print(f"Error: unknown command {command!r}", file=sys.stderr)
+    print(USAGE, file=sys.stderr)
+    sys.exit(1)
