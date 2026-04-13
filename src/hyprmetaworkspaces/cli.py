@@ -12,8 +12,8 @@ def _daemon_socket_path() -> Path:
     if not his:
         print("Error: HYPRLAND_INSTANCE_SIGNATURE is not set", file=sys.stderr)
         sys.exit(1)
-    state_dir = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
-    return state_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
+    runtime_dir = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    return runtime_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
 
 
 def _send_request(req: dict[str, object]) -> dict[str, object]:

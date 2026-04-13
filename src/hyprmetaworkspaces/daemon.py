@@ -16,8 +16,8 @@ def _daemon_socket_path() -> Path:
     his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
     if not his:
         raise RuntimeError("HYPRLAND_INSTANCE_SIGNATURE is not set")
-    state_dir = Path(os.environ.get("XDG_STATE_HOME") or (Path.home() / ".local" / "state"))
-    sock_dir = state_dir / "hypr" / "meta_workspaces" / his
+    runtime_dir = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
+    sock_dir = runtime_dir / "hypr" / "meta_workspaces" / his
     sock_dir.mkdir(parents=True, exist_ok=True)
     return sock_dir / "socket.sock"
 

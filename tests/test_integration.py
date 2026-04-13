@@ -225,7 +225,6 @@ def daemon(nested_hyprland):
     his, base_env = nested_hyprland
 
     tmpdir = tempfile.mkdtemp(prefix="hmw_")
-    state_dir = Path(tmpdir) / "s"
     config_dir = Path(tmpdir) / "c"
 
     # Write a config with no surrounding workspaces so inner range is unbounded
@@ -238,11 +237,11 @@ def daemon(nested_hyprland):
 
     env = dict(base_env)
     env["HYPRLAND_INSTANCE_SIGNATURE"] = his
-    env["XDG_STATE_HOME"] = str(state_dir)
     env["XDG_CONFIG_DIR"] = str(config_dir)
     env["PYTHONPATH"] = _SRCDIR
 
-    daemon_sock = state_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
+    runtime_dir = Path(env.get("XDG_RUNTIME_DIR") or "/tmp")
+    daemon_sock = runtime_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "hyprmetaworkspaces.daemon"],
@@ -272,6 +271,7 @@ def daemon(nested_hyprland):
             proc.wait()
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
+        daemon_sock.unlink(missing_ok=True)
 
 
 @pytest.fixture()
