@@ -11,8 +11,8 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         python = pkgs.python314;
-      in {
-        packages.default = python.pkgs.buildPythonApplication {
+
+        hyprmetaworkspaces = python.pkgs.buildPythonApplication {
           pname = "hyprmetaworkspaces";
           version = "0.1.0";
           pyproject = true;
@@ -30,12 +30,36 @@
             mainProgram = "hyprmetaworkspaced";
           };
         };
+      in {
+        packages.default = hyprmetaworkspaces;
+
+        checks.tests = python.pkgs.buildPythonPackage {
+          pname = "hyprmetaworkspaces-tests";
+          version = "0.1.0";
+          pyproject = true;
+
+          src = ./.;
+
+          build-system = [
+            python.pkgs.hatchling
+          ];
+
+          dependencies = [];
+
+          nativeCheckInputs = [
+            python.pkgs.pytest
+          ];
+
+          checkPhase = ''
+            pytest tests/ -v
+          '';
+        };
 
         devShells.default = pkgs.mkShell {
           packages = [
             python
             python.pkgs.hatchling
-            python.pkgs.pip
+            python.pkgs.pytest
           ];
         };
       }

@@ -134,7 +134,7 @@ async def _run(sock_path: Path, state: DaemonState) -> None:
         )
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover
     try:
         config = load_config()
     except ConfigError as exc:
@@ -159,3 +159,7 @@ def main() -> None:
     finally:
         if sock_path.exists():
             sock_path.unlink()
+
+
+if __name__ == "__main__":  # pragma: no cover
+    main()

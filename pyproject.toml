@@ -13,5 +13,11 @@ dependencies = []
 hyprmetaworkspaced = "hyprmetaworkspaces.daemon:main"
 hyprmwctl = "hyprmetaworkspaces.cli:main"
 
+[project.optional-dependencies]
+dev = ["pytest"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/hyprmetaworkspaces"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

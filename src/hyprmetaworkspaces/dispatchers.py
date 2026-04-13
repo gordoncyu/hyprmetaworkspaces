@@ -153,7 +153,8 @@ def dispatch_metaworkspacesequential(args: str, state: DaemonState) -> str:
 
     config = state.config
     upper = config.upper_bound_mw()
-    max_mw = upper if upper is not None else (state.current_mw + 100)  # practical limit for infinite
+    # When unbounded, cap at current_mw+100 so the wrap cycle terminates.
+    effective_upper = upper if upper is not None else (state.current_mw + 100)
 
     occupied = hyprland_ipc.workspaces_with_windows() if skip_empty else None
 
@@ -166,11 +167,11 @@ def dispatch_metaworkspacesequential(args: str, state: DaemonState) -> str:
     candidate = state.current_mw + step
 
     while True:
-        if candidate < 0 or (upper is not None and candidate > upper):
+        if candidate < 0 or candidate > effective_upper:
             if no_wrap:
                 return "noop"
             # wrap
-            candidate = 0 if direction == "next" else max_mw
+            candidate = 0 if direction == "next" else effective_upper
             if not config.is_valid_mw(candidate):
                 return "noop"
 
@@ -241,11 +242,16 @@ def _sequential_wrapin(
     if not candidates:
         return None
 
+    # Use band position for ordering, not numeric value, so exotic surroundings
+    # (e.g. left=1011 with inner=51-60) navigate in the correct conceptual order.
+    band_pos: dict[int, int] = {ws: i for i, ws in enumerate(band)}
+    current_pos: int = band_pos.get(current_ws, -1)
+
     if direction == "next":
-        after = [ws for ws in candidates if ws > current_ws]
+        after = [ws for ws in candidates if band_pos[ws] > current_pos]
         target = after[0] if after else candidates[0]
     else:
-        before = [ws for ws in candidates if ws < current_ws]
+        before = [ws for ws in candidates if band_pos[ws] < current_pos]
         target = before[-1] if before else candidates[-1]
 
     return (target, mw)
@@ -262,61 +268,46 @@ def _sequential_wrapout(
 ) -> tuple[int, int] | None:
     """Navigate forward/backward through mws, wrapping to the opposite end."""
     upper = config.upper_bound_mw()
+    # When unbounded, cap at current_mw+100 so the wrap cycle terminates.
+    effective_upper = upper if upper is not None else (mw + 100)
 
-    # Build a large enough sequence: all valid mws × 2 to account for wrapping
-    max_mw = upper if upper is not None else (mw + 100)
-    total_mws = max_mw + 1  # 0..max_mw inclusive
-
-    # Generate the sequence for all mws in direction order, then wrap
     def mw_band(m: int) -> list[int]:
         band = config.band(m)
         if skip_surrounding:
             band = [ws for ws in band if not config.is_surrounding(ws)]
         return band
 
-    # Locate current position in the global sequence
-    # We need to find the current ws in current mw's band, then step forward/backward
     current_band = mw_band(mw)
 
     try:
         idx = current_band.index(current_ws)
     except ValueError:
-        # current_ws not in band (e.g. we're on a surrounding not in the filtered list)
-        # Find closest
-        if direction == "next":
-            idx = len(current_band)  # will go to next mw
-        else:
-            idx = -1  # will go to prev mw
+        # current_ws not in band (e.g. on a surrounding filtered out by skipsurrounding)
+        idx = len(current_band) if direction == "next" else -1
 
-    # Try to advance within the current band
+    # Scan the remaining portion of the current band before crossing to another mw.
     if direction == "next":
-        next_idx = idx + 1
-        if next_idx < len(current_band):
-            ws = current_band[next_idx]
+        remaining = current_band[idx + 1:]
+        for ws in remaining:
             if is_candidate(ws):
-                # Check if this crosses a surrounding boundary that changes mw
-                new_mw = _check_mw_cross(current_ws, ws, mw, config, direction)
-                return (ws, new_mw)
+                return (ws, _check_mw_cross(current_ws, ws, mw, config, direction))
     else:
-        next_idx = idx - 1
-        if next_idx >= 0:
-            ws = current_band[next_idx]
+        remaining = current_band[:idx]
+        for ws in reversed(remaining):
             if is_candidate(ws):
-                new_mw = _check_mw_cross(current_ws, ws, mw, config, direction)
-                return (ws, new_mw)
+                return (ws, _check_mw_cross(current_ws, ws, mw, config, direction))
 
-    # Need to cross into next/prev mw
+    # Nothing left in current band — cross into neighboring mws, wrapping as needed.
     step = 1 if direction == "next" else -1
     next_mw = mw + step
 
     visited_mws: set[int] = set()
     while True:
-        if next_mw < 0 or (upper is not None and next_mw > upper):
-            # Wrap
-            next_mw = 0 if direction == "next" else max_mw
+        if next_mw < 0 or next_mw > effective_upper:
+            next_mw = 0 if direction == "next" else effective_upper
 
         if next_mw in visited_mws:
-            return None  # full cycle, nothing found
+            return None  # full cycle with no candidates
         visited_mws.add(next_mw)
 
         if not config.is_valid_mw(next_mw):
