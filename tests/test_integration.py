@@ -156,11 +156,14 @@ def _wait_for_workspace_event(
 # Minimal Hyprland config for the nested compositor
 # ---------------------------------------------------------------------------
 
-_HYPR_CONF = """\
-monitor = ,preferred,auto,1
-animations { enabled = false }
-misc { disable_hyprland_logo = true; disable_splash_rendering = true }
-"""
+def _hypr_conf() -> str:
+    """Build a minimal Hyprland config for a nested compositor."""
+    return (
+        "monitor = ,preferred,auto,1\n"
+        "animations { enabled = false }\n"
+        "misc { disable_hyprland_logo = true; disable_splash_rendering = true }\n"
+        "exec-once = sleep infinity\n"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +188,7 @@ def nested_hyprland():
 
     with tempfile.TemporaryDirectory(prefix="hypr_integration_") as tmpdir:
         conf_path = Path(tmpdir) / "hyprland.conf"
-        conf_path.write_text(_HYPR_CONF)
+        conf_path.write_text(_hypr_conf())
 
         before = _existing_instances()
         env = dict(os.environ)
@@ -214,14 +217,16 @@ def nested_hyprland():
 
 
 @pytest.fixture(scope="module")
-def daemon(nested_hyprland, tmp_path_factory):
+def daemon(nested_hyprland):
     """
     Start hyprmetaworkspaced against the nested Hyprland and yield the daemon socket path.
+    Uses /tmp for short paths to avoid AF_UNIX 108-char limit.
     """
     his, base_env = nested_hyprland
 
-    state_dir = tmp_path_factory.mktemp("hmw_state")
-    config_dir = tmp_path_factory.mktemp("hmw_config")
+    tmpdir = tempfile.mkdtemp(prefix="hmw_")
+    state_dir = Path(tmpdir) / "s"
+    config_dir = Path(tmpdir) / "c"
 
     # Write a config with no surrounding workspaces so inner range is unbounded
     (config_dir / "hypr").mkdir(parents=True, exist_ok=True)
@@ -254,8 +259,8 @@ def daemon(nested_hyprland, tmp_path_factory):
             time.sleep(0.1)
         else:
             proc.terminate()
-            proc.wait(timeout=5)
-            pytest.skip("Daemon socket did not appear within 10s")
+            stderr = proc.communicate(timeout=5)[1].decode(errors="replace")
+            pytest.skip(f"Daemon did not start: {stderr[-500:]}")
 
         yield daemon_sock
     finally:
@@ -265,6 +270,8 @@ def daemon(nested_hyprland, tmp_path_factory):
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 @pytest.fixture()
@@ -381,8 +388,9 @@ class TestMetaworkspaceDispatcher:
         assert resp.get("result") == "ok"
         assert _wait_for_workspace_event(event_queue, 14)
 
-    def test_metaworkspace_invalid_returns_noop(self, daemon) -> None:
-        resp = _dispatch(daemon, "metaworkspace", "9999")
+    def test_metaworkspace_negative_returns_noop(self, daemon) -> None:
+        """Negative metaworkspace is always invalid."""
+        resp = _dispatch(daemon, "metaworkspace", "-1")
         result = resp.get("result")
         assert isinstance(result, str) and "noop" in result
 
