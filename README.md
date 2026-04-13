@@ -163,11 +163,11 @@ The daemon subscribes to Hyprland's event socket. When you switch workspaces by 
 ## Architecture
 
 ```
-┌─────────────┐  JSON-RPC/Unix socket  ┌──────────────────┐  Hyprland IPC  ┌──────────┐
-│  hyprmwctl  │ ──────────────────────> │ hyprmetaworkspaced│ ─────────────> │ Hyprland │
-└─────────────┘                         │                  │ <───────────── │          │
-                                        │  (event listener)│  workspace>>N  └──────────┘
-                                        └──────────────────┘
+┌─────────────┐  JSON-RPC/Unix socket  ┌────────────────────┐  Hyprland IPC  ┌──────────┐
+│  hyprmwctl  │ ─────────────────────> │ hyprmetaworkspaced │ ─────────────> │ Hyprland │
+└─────────────┘                        │                    │ <───────────── │          │
+                                       │  (event listener)  │  workspace>>N  └──────────┘
+                                       └────────────────────┘
 ```
 
 ## Testing
