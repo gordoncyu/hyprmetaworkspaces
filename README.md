@@ -33,6 +33,14 @@ nix develop
 pytest tests/ -v
 ```
 
+### Starting the daemon
+
+Add to your `hyprland.conf`:
+
+```ini
+exec-once = hyprmetaworkspaced
+```
+
 ## Configuration
 
 Config file: `$XDG_CONFIG_HOME/hypr/hyprmetaworkspaces.conf` (defaults to `~/.config/hypr/hyprmetaworkspaces.conf`)
