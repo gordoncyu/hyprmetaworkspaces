@@ -9,6 +9,9 @@ A two-level workspace hierarchy for [Hyprland](https://hyprland.org). Groups Hyp
 
 Metaworkspace 0 contains workspaces 1–10, metaworkspace 1 contains 11–20, and so on. Digits 1–9 map directly; digit 0 maps to the 10th workspace (configurable with `workspace_zero_last`).
 
+### Why not a Hyprland plugin?
+I wanted to use python and not c++ # TODO: MAKE CPP AND PLUGIN
+
 ## Installation
 
 ### Nix flake
@@ -16,7 +19,7 @@ Metaworkspace 0 contains workspaces 1–10, metaworkspace 1 contains 11–20, an
 ```nix
 # flake.nix
 {
-  inputs.hyprmetaworkspaces.url = "github:user/hyprmetaworkspaces";
+  inputs.hyprmetaworkspaces.url = "github:gordoncyu/hyprmetaworkspaces";
 
   # In your system/home-manager config:
   environment.systemPackages = [ hyprmetaworkspaces.packages.${system}.default ];
