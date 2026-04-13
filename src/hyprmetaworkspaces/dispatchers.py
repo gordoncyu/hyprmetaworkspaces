@@ -69,6 +69,42 @@ def dispatch_workspace(args: str, state: DaemonState) -> str:
     return "ok"
 
 
+def _parse_workspace_digit(args: str, name: str) -> int:
+    parts = [p.strip() for p in args.split(",")]
+    if len(parts) != 1:
+        raise DispatchError(f"{name} expects 1 argument, got {len(parts)}")
+    try:
+        digit = int(parts[0])
+    except ValueError:
+        raise DispatchError(f"{name} argument must be a digit 0-9, got {parts[0]!r}")
+    if digit < 0 or digit > 9:
+        raise DispatchError(f"{name} digit must be 0-9, got {digit}")
+    return digit
+
+
+def dispatch_movetoworkspace(args: str, state: DaemonState) -> str:
+    """
+    movetoworkspace <digit>
+    Move the focused window to workspace digit (0-9) in the current mw and follow it.
+    """
+    digit = _parse_workspace_digit(args, "movetoworkspace")
+    ws = state.config.digit_to_workspace(state.current_mw, digit)
+    hyprland_ipc.dispatch("movetoworkspace", str(ws))
+    state.record_visit(ws)
+    return "ok"
+
+
+def dispatch_movetoworkspacesilent(args: str, state: DaemonState) -> str:
+    """
+    movetoworkspacesilent <digit>
+    Move the focused window to workspace digit (0-9) in the current mw without following.
+    """
+    digit = _parse_workspace_digit(args, "movetoworkspacesilent")
+    ws = state.config.digit_to_workspace(state.current_mw, digit)
+    hyprland_ipc.dispatch("movetoworkspacesilent", str(ws))
+    return "ok"
+
+
 def dispatch_metaworkspace(args: str, state: DaemonState) -> str:
     """
     metaworkspace <n>[,chordworkspace]
@@ -412,6 +448,8 @@ def dispatch_movetometaworkspacesilent(args: str, state: DaemonState) -> str:
 
 DISPATCHER_MAP: dict[str, "callable[[str, DaemonState], str]"] = {
     "workspace": dispatch_workspace,
+    "movetoworkspace": dispatch_movetoworkspace,
+    "movetoworkspacesilent": dispatch_movetoworkspacesilent,
     "metaworkspace": dispatch_metaworkspace,
     "movetometaworkspace": dispatch_movetometaworkspace,
     "movetometaworkspacesilent": dispatch_movetometaworkspacesilent,

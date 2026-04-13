@@ -88,6 +88,8 @@ Commands:
 
       Dispatchers:
         workspace <digit>
+        movetoworkspace <digit>
+        movetoworkspacesilent <digit>
         metaworkspace <n>[,chordworkspace]
         movetometaworkspace <n>[,chordworkspace]
         movetometaworkspacesilent <n>[,chordworkspace]

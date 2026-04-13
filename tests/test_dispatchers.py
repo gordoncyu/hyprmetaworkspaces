@@ -16,6 +16,8 @@ from hyprmetaworkspaces.dispatchers import (
     dispatch_metaworkspacesequential,
     dispatch_movetometaworkspace,
     dispatch_movetometaworkspacesilent,
+    dispatch_movetoworkspace,
+    dispatch_movetoworkspacesilent,
     dispatch_workspace,
     dispatch_workspacesequential,
     handle_dispatch,
@@ -350,6 +352,53 @@ class TestDispatchWorkspace:
 # ---------------------------------------------------------------------------
 
 
+class TestDispatchMoveToWorkspace:
+    def test_moves_window_to_digit_in_current_mw(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=2)
+        result = dispatch_movetoworkspace("5", s)
+        assert result == "ok"
+        mock_ipc.dispatch.assert_called_with("movetoworkspace", "25")
+
+    def test_follows_window_updates_state(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=1)
+        dispatch_movetoworkspace("3", s)
+        assert s.current_mw == 1
+        assert s.last_visited[1] == 13
+
+    def test_digit_0_zero_last(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        dispatch_movetoworkspace("0", s)
+        mock_ipc.dispatch.assert_called_with("movetoworkspace", "10")
+
+    def test_silent_does_not_follow(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=2)
+        result = dispatch_movetoworkspacesilent("5", s)
+        assert result == "ok"
+        mock_ipc.dispatch.assert_called_with("movetoworkspacesilent", "25")
+        # State unchanged
+        assert s.current_mw == 2
+        assert 2 not in s.last_visited
+
+    def test_invalid_digit_raises(self, mock_ipc: MagicMock) -> None:
+        s = _state()
+        with pytest.raises(DispatchError):
+            dispatch_movetoworkspace("99", s)
+
+    def test_non_integer_raises(self, mock_ipc: MagicMock) -> None:
+        s = _state()
+        with pytest.raises(DispatchError):
+            dispatch_movetoworkspace("abc", s)
+
+    def test_too_many_args_raises(self, mock_ipc: MagicMock) -> None:
+        s = _state()
+        with pytest.raises(DispatchError):
+            dispatch_movetoworkspace("1,2", s)
+
+
 class TestDispatchMetaworkspace:
     def test_switches_to_default_if_never_visited(self, mock_ipc: MagicMock) -> None:
         c = _cfg(right=[21, 22])  # upper = mw1
@@ -681,7 +730,7 @@ class TestDispatchMetaworkspaceSequential:
 class TestHandleDispatch:
     def test_routes_known_dispatchers(self, mock_ipc: MagicMock, mock_current_ws: MagicMock) -> None:
         s = _state()
-        for name in ("workspace", "metaworkspace", "movetometaworkspace", "movetometaworkspacesilent", "workspacesequential", "metaworkspacesequential"):
+        for name in ("workspace", "movetoworkspace", "movetoworkspacesilent", "metaworkspace", "movetometaworkspace", "movetometaworkspacesilent", "workspacesequential", "metaworkspacesequential"):
             # Just check it doesn't raise DispatchError for unknown method
             try:
                 handle_dispatch(name, "next" if "sequential" in name else "1", s)
