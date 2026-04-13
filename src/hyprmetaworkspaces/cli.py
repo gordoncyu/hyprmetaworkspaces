@@ -89,6 +89,8 @@ Commands:
       Dispatchers:
         workspace <digit>
         metaworkspace <n>[,chordworkspace]
+        movetometaworkspace <n>[,chordworkspace]
+        movetometaworkspacesilent <n>[,chordworkspace]
         workspacesequential <next|prev>[,skipempty][,skipsurrounding][,wrapin|wrapout]
         metaworkspacesequential <next|prev>[,skipempty][,wrap|nowrap]
 

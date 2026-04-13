@@ -10,7 +10,7 @@ class DispatchError(Exception):
 
 
 # Tracks which chord submaps have been created (per mw index)
-_chord_submaps_created: set[int] = set()
+_chord_submaps_created: set[tuple[int, str]] = set()
 
 
 def _go_to_workspace(ws: int, state: DaemonState) -> None:
@@ -18,21 +18,34 @@ def _go_to_workspace(ws: int, state: DaemonState) -> None:
     state.record_visit(ws)
 
 
-def _ensure_chord_submap(mw: int, config: Config) -> str:
-    """Lazily create a Hyprland submap for chord-selecting inner workspaces of mw."""
-    submap_name = f"hyprmetaworkspaces_chord_mw{mw}"
-    if mw in _chord_submaps_created:
+def _ensure_chord_submap(mw: int, config: Config, variant: str = "workspace") -> str:
+    """
+    Lazily create a Hyprland submap for chord-selecting inner workspaces of mw.
+
+    variant controls what action each digit performs:
+      - "workspace": dispatch workspace <digit> (navigate)
+      - "movetoworkspace": movetoworkspace <abs_ws> (move window + follow)
+      - "movetoworkspacesilent": movetoworkspacesilent <abs_ws> (move window, stay)
+    """
+    key = (mw, variant)
+    submap_name = f"hyprmetaworkspaces_chord_{variant}_mw{mw}"
+    if key in _chord_submaps_created:
         return submap_name
 
     hyprland_ipc.keyword("submap", submap_name)
     for digit in range(0, 10):
         ws = config.digit_to_workspace(mw, digit)
-        hyprland_ipc.keyword("bind", f", {digit}, exec, hyprmwctl workspace {digit}")
+        if variant == "workspace":
+            hyprland_ipc.keyword("bind", f", {digit}, exec, hyprmwctl dispatch workspace {digit}")
+        else:
+            # movetoworkspace / movetoworkspacesilent use absolute ws numbers
+            # via Hyprland's native dispatcher directly
+            hyprland_ipc.keyword("bind", f", {digit}, exec, hyprctl dispatch {variant} {ws}")
         hyprland_ipc.keyword("bind", f", {digit}, submap, reset")
     hyprland_ipc.keyword("bind", ", catchall, submap, reset")
     hyprland_ipc.keyword("submap", "reset")
 
-    _chord_submaps_created.add(mw)
+    _chord_submaps_created.add(key)
     return submap_name
 
 
@@ -76,7 +89,7 @@ def dispatch_metaworkspace(args: str, state: DaemonState) -> str:
         return "noop: invalid metaworkspace"
 
     if chord:
-        submap = _ensure_chord_submap(mw, state.config)
+        submap = _ensure_chord_submap(mw, state.config, "workspace")
         # Switch to mw first (to last visited), then enter submap
         ws = state.get_last_visited(mw)
         _go_to_workspace(ws, state)
@@ -354,9 +367,54 @@ def _check_mw_cross(from_ws: int, to_ws: int, current_mw: int, config: Config, d
     return current_mw
 
 
+def _dispatch_movetometaworkspace(args: str, state: DaemonState, silent: bool) -> str:
+    """
+    movetometaworkspace[silent] <n>[,chordworkspace]
+    Move the focused window to metaworkspace n.
+    Non-silent follows the window; silent stays on current workspace.
+    With chordworkspace, enter a submap for digit selection (stay put until chord resolves).
+    """
+    parts = [p.strip() for p in args.split(",")]
+    if not parts or not parts[0]:
+        raise DispatchError("movetometaworkspace requires at least one argument")
+
+    try:
+        mw = int(parts[0])
+    except ValueError:
+        raise DispatchError(f"movetometaworkspace first argument must be an integer, got {parts[0]!r}")
+
+    chord = len(parts) >= 2 and parts[1] == "chordworkspace"
+    hypr_dispatcher = "movetoworkspacesilent" if silent else "movetoworkspace"
+
+    if not state.config.is_valid_mw(mw):
+        return "noop: invalid metaworkspace"
+
+    if chord:
+        submap = _ensure_chord_submap(mw, state.config, hypr_dispatcher)
+        # Stay where we are — don't switch mw until chord resolves
+        hyprland_ipc.dispatch("submap", submap)
+    else:
+        ws = state.get_last_visited(mw)
+        hyprland_ipc.dispatch(hypr_dispatcher, str(ws))
+        if not silent:
+            state.record_visit(ws)
+
+    return "ok"
+
+
+def dispatch_movetometaworkspace(args: str, state: DaemonState) -> str:
+    return _dispatch_movetometaworkspace(args, state, silent=False)
+
+
+def dispatch_movetometaworkspacesilent(args: str, state: DaemonState) -> str:
+    return _dispatch_movetometaworkspace(args, state, silent=True)
+
+
 DISPATCHER_MAP: dict[str, "callable[[str, DaemonState], str]"] = {
     "workspace": dispatch_workspace,
     "metaworkspace": dispatch_metaworkspace,
+    "movetometaworkspace": dispatch_movetometaworkspace,
+    "movetometaworkspacesilent": dispatch_movetometaworkspacesilent,
     "workspacesequential": dispatch_workspacesequential,
     "metaworkspacesequential": dispatch_metaworkspacesequential,
 }

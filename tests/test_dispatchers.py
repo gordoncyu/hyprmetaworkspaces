@@ -14,6 +14,8 @@ from hyprmetaworkspaces.dispatchers import (
     _sequential_wrapout,
     dispatch_metaworkspace,
     dispatch_metaworkspacesequential,
+    dispatch_movetometaworkspace,
+    dispatch_movetometaworkspacesilent,
     dispatch_workspace,
     dispatch_workspacesequential,
     handle_dispatch,
@@ -376,7 +378,7 @@ class TestDispatchMetaworkspace:
         # Should dispatch to the named submap
         submap_calls = [call for call in mock_ipc.dispatch.call_args_list if call[0][0] == "submap"]
         assert len(submap_calls) == 1
-        assert "hyprmetaworkspaces_chord_mw1" in submap_calls[0][0][1]
+        assert "hyprmetaworkspaces_chord_workspace_mw1" in submap_calls[0][0][1]
 
     def test_chord_submap_created_only_once(self, mock_ipc: MagicMock) -> None:
         c = _cfg(right=[21, 22])
@@ -396,6 +398,97 @@ class TestDispatchMetaworkspace:
         s = _state()
         with pytest.raises(DispatchError):
             dispatch_metaworkspace("", s)
+
+
+# ---------------------------------------------------------------------------
+# dispatch_movetometaworkspace / dispatch_movetometaworkspacesilent
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchMoveToMetaworkspace:
+    def test_moves_window_to_last_visited(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0, last_visited={1: 15})
+        result = dispatch_movetometaworkspace("1", s)
+        assert result == "ok"
+        mock_ipc.dispatch.assert_called_with("movetoworkspace", "15")
+
+    def test_moves_to_default_if_never_visited(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        result = dispatch_movetometaworkspace("1", s)
+        assert result == "ok"
+        # default for mw1 with zero_last=true is ws 11
+        mock_ipc.dispatch.assert_called_with("movetoworkspace", "11")
+
+    def test_follows_window_updates_state(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        dispatch_movetometaworkspace("1", s)
+        # Non-silent records the visit
+        assert s.current_mw == 1
+        assert s.last_visited[1] == 11
+
+    def test_silent_does_not_follow(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        result = dispatch_movetometaworkspacesilent("1", s)
+        assert result == "ok"
+        mock_ipc.dispatch.assert_called_with("movetoworkspacesilent", "11")
+        # Silent does not change current mw
+        assert s.current_mw == 0
+
+    def test_invalid_mw_is_noop(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c)
+        result = dispatch_movetometaworkspace("-1", s)
+        assert "noop" in result
+        mock_ipc.dispatch.assert_not_called()
+
+    def test_chord_enters_submap_without_switching(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        result = dispatch_movetometaworkspace("2,chordworkspace", s)
+        assert result == "ok"
+        # Should NOT have dispatched movetoworkspace — stays put
+        move_calls = [c for c in mock_ipc.dispatch.call_args_list if c[0][0] == "movetoworkspace"]
+        assert len(move_calls) == 0
+        # Should have entered a submap
+        submap_calls = [c for c in mock_ipc.dispatch.call_args_list if c[0][0] == "submap"]
+        assert len(submap_calls) == 1
+        assert "movetoworkspace" in submap_calls[0][0][1]
+        # Current mw unchanged
+        assert s.current_mw == 0
+
+    def test_chord_silent_uses_silent_submap(self, mock_ipc: MagicMock) -> None:
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        result = dispatch_movetometaworkspacesilent("2,chordworkspace", s)
+        assert result == "ok"
+        submap_calls = [c for c in mock_ipc.dispatch.call_args_list if c[0][0] == "submap"]
+        assert len(submap_calls) == 1
+        assert "movetoworkspacesilent" in submap_calls[0][0][1]
+
+    def test_chord_submap_binds_use_hyprctl(self, mock_ipc: MagicMock) -> None:
+        """Chord submap digits should use hyprctl dispatch movetoworkspace with absolute ws numbers."""
+        c = _cfg()
+        s = _state(config=c, current_mw=0)
+        dispatch_movetometaworkspace("1,chordworkspace", s)
+        # Check keyword calls for the submap bindings
+        keyword_calls = [call[0] for call in mock_ipc.keyword.call_args_list]
+        # digit 3 in mw1 with zero_last=true → ws 13
+        bind_calls = [(k, v) for k, v in keyword_calls if k == "bind" and ", 3," in v]
+        assert any("hyprctl dispatch movetoworkspace 13" in v for _, v in bind_calls)
+
+    def test_non_integer_raises(self, mock_ipc: MagicMock) -> None:
+        s = _state()
+        with pytest.raises(DispatchError):
+            dispatch_movetometaworkspace("abc", s)
+
+    def test_empty_args_raises(self, mock_ipc: MagicMock) -> None:
+        s = _state()
+        with pytest.raises(DispatchError):
+            dispatch_movetometaworkspace("", s)
 
 
 # ---------------------------------------------------------------------------
@@ -588,7 +681,7 @@ class TestDispatchMetaworkspaceSequential:
 class TestHandleDispatch:
     def test_routes_known_dispatchers(self, mock_ipc: MagicMock, mock_current_ws: MagicMock) -> None:
         s = _state()
-        for name in ("workspace", "metaworkspace", "workspacesequential", "metaworkspacesequential"):
+        for name in ("workspace", "metaworkspace", "movetometaworkspace", "movetometaworkspacesilent", "workspacesequential", "metaworkspacesequential"):
             # Just check it doesn't raise DispatchError for unknown method
             try:
                 handle_dispatch(name, "next" if "sequential" in name else "1", s)
