@@ -239,8 +239,9 @@ def daemon(nested_hyprland):
     env["HYPRLAND_INSTANCE_SIGNATURE"] = his
     env["XDG_CONFIG_DIR"] = str(config_dir)
     env["PYTHONPATH"] = _SRCDIR
+    env["HYPRMETAWORKSPACES_RUNTIME_DIR"] = "/tmp"
 
-    runtime_dir = Path(env.get("XDG_RUNTIME_DIR") or "/tmp")
+    runtime_dir = Path("/tmp")
     daemon_sock = runtime_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
 
     proc = subprocess.Popen(
