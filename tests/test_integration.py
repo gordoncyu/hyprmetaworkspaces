@@ -160,8 +160,15 @@ def _hypr_conf() -> str:
     """Build a minimal Hyprland config for a nested compositor."""
     return (
         "monitor = ,preferred,auto,1\n"
-        "animations { enabled = false }\n"
-        "misc { disable_hyprland_logo = true; disable_splash_rendering = true }\n"
+        "animations {\n"
+        "    enabled = false\n"
+        "}\n"
+        "misc {\n"
+        "    disable_hyprland_logo = true\n"
+        "    disable_splash_rendering = true\n"
+        "    force_default_wallpaper = 0\n"
+        "    background_color = 0xff000000\n"
+        "}\n"
         "exec-once = sleep infinity\n"
     )
 
