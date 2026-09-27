@@ -9,6 +9,7 @@ from pathlib import Path
 from .config import ConfigError, load_config
 from .dispatchers import DispatchError, handle_dispatch
 from .hyprland_ipc import HyprlandIPCError, iter_events
+from .paths import daemon_socket_path, resolve_runtime_dir
 from .state import DaemonState
 
 
@@ -16,14 +17,9 @@ def _daemon_socket_path() -> Path:
     his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
     if not his:
         raise RuntimeError("HYPRLAND_INSTANCE_SIGNATURE is not set")
-    runtime_dir = Path(
-        os.environ.get("HYPRMETAWORKSPACES_RUNTIME_DIR")
-        or os.environ.get("XDG_RUNTIME_DIR")
-        or "/tmp"
-    )
-    sock_dir = runtime_dir / "hypr" / "meta_workspaces" / his
-    sock_dir.mkdir(parents=True, exist_ok=True)
-    return sock_dir / "socket.sock"
+    sock_path = daemon_socket_path(his, resolve_runtime_dir())
+    sock_path.parent.mkdir(parents=True, exist_ok=True)
+    return sock_path
 
 
 def _make_response(id: int | str | None, result: object) -> bytes:

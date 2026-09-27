@@ -24,11 +24,13 @@ from pathlib import Path
 
 import pytest
 
+from hyprmetaworkspaces.paths import daemon_socket_path
+
+_SRCDIR = str(Path(__file__).parent.parent / "src")
+
 # ---------------------------------------------------------------------------
 # Helpers for communicating with Hyprland and the daemon
 # ---------------------------------------------------------------------------
-
-_SRCDIR = str(Path(__file__).parent.parent / "src")
 
 
 def _hypr_runtime_dir() -> Path:
@@ -248,8 +250,7 @@ def daemon(nested_hyprland):
     env["PYTHONPATH"] = _SRCDIR
     env["HYPRMETAWORKSPACES_RUNTIME_DIR"] = "/tmp"
 
-    runtime_dir = Path("/tmp")
-    daemon_sock = runtime_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
+    daemon_sock = daemon_socket_path(his, Path("/tmp"))
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "hyprmetaworkspaces.daemon"],

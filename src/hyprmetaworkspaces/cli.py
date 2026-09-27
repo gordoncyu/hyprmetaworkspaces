@@ -6,14 +6,15 @@ import socket
 import sys
 from pathlib import Path
 
+from .paths import daemon_socket_path, resolve_runtime_dir
+
 
 def _daemon_socket_path() -> Path:
     his = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
     if not his:
         print("Error: HYPRLAND_INSTANCE_SIGNATURE is not set", file=sys.stderr)
         sys.exit(1)
-    runtime_dir = Path(os.environ.get("XDG_RUNTIME_DIR") or "/tmp")
-    return runtime_dir / "hypr" / "meta_workspaces" / his / "socket.sock"
+    return daemon_socket_path(his, resolve_runtime_dir())
 
 
 def _send_request(req: dict[str, object]) -> dict[str, object]:
